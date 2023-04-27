@@ -85,7 +85,6 @@ def length(route: tuple, dist: np.ndarray) -> float:
     return length_between_cities
 
 
-# Определяем функцию для обновления феромона на основе маршрута и его длины
 def update_pheromone(ph: np.ndarray, route: tuple, length: float,
                      q: float) -> np.ndarray:
     """
@@ -106,7 +105,6 @@ def update_pheromone(ph: np.ndarray, route: tuple, length: float,
     return ph
 
 
-# Определяем функцию для решения задачи коммивояжера с помощью алгоритма муравьиной колонии
 def aco(dist: np.ndarray, start: int, end: int, *, ants: int = 1, ages: int = 1,
         rho: float = 0.1, a: float = 1, b: float = 1, q: float = 1,
         ph_min: float = 0.01, ph_max: float = 1, elite: int = 0) -> tuple:
