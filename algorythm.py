@@ -6,7 +6,7 @@ import numpy as np
 from random import random
 
 
-def inverse_distance(dist: np.ndarray) -> np.ndarray:
+def inverse_distance(dist: np.ndarray, num: int, b: float) -> np.ndarray:
     """
     Вычисляет обратное расстояние между городами в матрице расстояний.
     Эта функция нужна в алгоритме ACO для того, чтобы определить начальное
@@ -16,21 +16,22 @@ def inverse_distance(dist: np.ndarray) -> np.ndarray:
     и тем больше феромона. Это способствует поиску более коротких и оптимальных
     маршрутов.
     :param dist: Матрица расстояний между городами.
+    :param num: Количество городов
+    :param b: Параметр влияния обратного расстояния
     :return: Матрица обратных расстояний между городами
     """
-    num = dist.shape[0]  # Количество городов
     reverse_dist = np.zeros(
         (num, num))  # Создаем пустую матрицу обратных расстояний
     for i in range(num):
         for j in range(num):
             if i != j:
-                reverse_dist[i, j] = 1 / dist[
-                    i, j]  # Вычисляем обратное расстояние по формуле 1 / d_ij
+                # Вычисляем обратное расстояние по формуле 1/d_ij
+                reverse_dist[i, j] = 1 / dist[i, j] ** b
     return reverse_dist
 
 
 def choose_next_city(visited: tuple, unvisited: tuple, ph: np.ndarray,
-                     rev_dist: np.ndarray, a: float, b: float) -> int:
+                     rev_dist: np.ndarray, a: float) -> int:
     """
     Выбирает следующий город с помощью жадного правила на основе феромона
     и обратного расстояния.
@@ -46,7 +47,6 @@ def choose_next_city(visited: tuple, unvisited: tuple, ph: np.ndarray,
     :param ph: Матрица феромона между городами.
     :param rev_dist: Матрица обратных расстояний между городами.
     :param a: Параметр влияния феромона.
-    :param b: Параметр влияния обратного расстояния.
     :return: Индекс следующего города
     """
     # Вычисляем привлекательность каждого непосещенного города по
@@ -72,21 +72,22 @@ def choose_next_city(visited: tuple, unvisited: tuple, ph: np.ndarray,
     return next_city
 
 
-def length(route: tuple, dist: np.ndarray) -> float:
+def length(route: tuple, dist: np.ndarray, available: int) -> float:
     """
     Вычисляет длину маршрута по матрице расстояний.
     :param route: Кортеж индексов городов в маршруте.
     :param dist: Матрица расстояний между городами
+    :param available: Количество доступных вершин
     :return: Длина маршрута
     """
     # Суммируем расстояния между соседними городами в маршруте
     length_between_cities = sum([dist[route[i], route[i + 1]] for i in
-                                 range(len(route) - 1)])
+                                 range(available)])
     return length_between_cities
 
 
 def update_pheromone(ph: np.ndarray, route: tuple, length: float,
-                     q: float) -> np.ndarray:
+                     q: float, available: int) -> np.ndarray:
     """
     Обновляет феромон на основе маршрута и его длины по
     формуле ph_ij = ph_ij + q /
@@ -94,13 +95,14 @@ def update_pheromone(ph: np.ndarray, route: tuple, length: float,
     :param route: Кортеж индексов городов в маршруте
     :param length: Длина маршрута
     :param q: Параметр влияния длины маршрута
+    :param available: Количество доступных вершин
     :return: Обновленная матрица феромона между городами
     """
     # Вычисляем относительное количество феромона по формуле q / L
     relative_q = q / length
 
     # Добавляем феромон к каждому ребру в маршруте
-    for i in range(len(route) - 1):
+    for i in range(available):
         ph[route[i], route[i + 1]] += relative_q
     return ph
 
@@ -124,10 +126,10 @@ def aco(dist: np.ndarray, start: int, end: int, *, ants: int = 1, ages: int = 1,
     :param elite: Количество элитных муравьев, которые оставляют больше феромона
     :return: кортеж индексов городов в лучшем маршруте и длину лучшего маршрута.
     """
-    # Вычисляем обратное расстояние между городами
-    rev_dist = inverse_distance(dist)
     # Получаем количество городов
     num = dist.shape[0]
+    # Вычисляем обратное расстояние между городами
+    rev_dist = inverse_distance(dist, num, b)
     # Инициализируем матрицу феромона максимальным значением
     ph = np.ones((num, num)) * ph_max
     # Инициализируем лучший маршрут и его длину пустыми значениями
@@ -148,22 +150,23 @@ def aco(dist: np.ndarray, start: int, end: int, *, ants: int = 1, ages: int = 1,
                 unvisited = tuple(vertexes - set(visited))
                 # Выбираем следующую вершину с помощью жадного правила
                 next_city = choose_next_city(visited, unvisited, ph, rev_dist,
-                                             a, b)
+                                             a)
                 # Добавляем ее к посещенным вершинам
                 visited += (next_city,)
             # Добавляем конечную вершину к посещенным вершинам
             visited += (end,)
             # Вычисляем длину маршрута
-            route_length = length(visited, dist)
+            route_length = length(visited, dist, available)
             # Обновляем феромон на основе маршрута и его длины
-            ph = update_pheromone(ph, visited, route_length, q)
+            ph = update_pheromone(ph, visited, route_length, q, available)
             # Если длина маршрута меньше лучшей длины, то обновляем
             # лучший маршрут и его длину
             if route_length < best_length:
                 best_route, best_length = visited, route_length
+        size = len(best_route) - 1
         # Обновляем феромон на основе лучшего маршрута и его длины с
         # учетом элитных муравьев
-        ph = update_pheromone(ph, best_route, best_length, q * elite)
+        ph = update_pheromone(ph, best_route, best_length, q * elite, size)
         # Умножаем феромон на коэффициент испарения и обрезаем его по
         # минимальному и максимальному значению
         ph = np.clip(ph * (1 - rho), ph_min, ph_max)
